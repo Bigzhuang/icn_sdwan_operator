@@ -2,39 +2,53 @@
 
 The sdewan operator is developed under kubebuilder framework
 
-We define two CRDs in this patch: Sdewan and Mwan3Conf.
+## Development
 
-Sdewan defines the CNF base info, which node we should deploy the CNF on,
-which network should the CNF use with multus CNI, etc.
-
-The Mwan3Conf defines the mwan3 rules. In the next step, we are going to
-develop the firewall and the ipsec functions. Mwan3Conf is validated by k8s
-api admission webhook.
-
-For each created Sdewan instance, the controller creates a pod, a configmap
-and a service for the instance. The pod runs openwrt which provides network
-services, i.e. sdwan, firewall, ipsec etc.
-
-The configmap stores the network interface information and the entrypoint.sh.
-The network interface information has the following format:
+Project initialization(mostly, developers should not execute this step)
 ```
-[
-  {
-    "name": "ovn-priv-net",
-    "isProvider": false,
-    "interface": "net0",
-    "defaultGateway": false
-  }
-]
+go mod init sdewan.akraino.org/sdewan
+kubebuilder init --domain sdewan.akraino.org
 ```
 
-The service created by the controller is used for openwrt api access.
-We call this svc to apply rules, get openwrt info, restart openwrt service.
+To create new CRD and controller
+```
+kubebuilder create api --group batch --version  v1alpha1  --kind  Mwan3Policy
+```
 
-After the openwrt pod ready, the Sdewan controller apply the configured mwan3 rules.
-mwan3 rule details are configured in Mwan3Conf CR, which is referenced by Sdewan.Spec.Mwan3Conf
-Every time the Mwan3Conf instance changes, the controller re-apply the new rules by calling opwnrt
-api. We can also change the rule refernce at the runtime.
+## Deployment
+
+To Deploy dev env
+1. Deploy icn
+2. kubectl apply -f sample/*.yaml
+
+-----
+# Backup
+
+## Install ICN
+
+1. clone icn repo
+2. cd icn and make the following change of Makefile
+  ```
+  jenkins@pod14-node2:/home/stack/cheng/icncheng$ git diff Makefile
+  diff --git a/Makefile b/Makefile
+  index d0e5b33..9ac687b 100644
+  --- a/Makefile
+  +++ b/Makefile
+  @@ -160,9 +160,6 @@ verify_nestedk8s: prerequisite \
+  
+   bm_verify_nestedk8s: prerequisite \
+           kud_bm_deploy_e2e \
+  -        sdwan_verifier \
+  -        kud_bm_reset \
+  -       clean_bm_packages
+  ```
+3. vagrant up
+4. login vagrant VM and execute the following commands
+  ```
+  sudo su
+  cd /vagrant
+  make bm_verify_nestedk8s
+  ```
 
 ## Deployment
 
@@ -59,14 +73,6 @@ cd build
 sudo bash build_image.sh
 ```
 
-## Development
-
-To create new api with kubebuilder
-```
-go mod init sdewan.akraino.org/sdewan
-kubebuilder init --domain sdewan.akraino.org
-kubebuilder create api --group batch --version  v1alpha1  --kind  Mwan3Policy
-```
 
 ## References
 
