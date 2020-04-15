@@ -33,7 +33,45 @@ func NetworkInterfaceMap(instance *sdewanv1alpha1.Sdewan) map[string]string {
 	return ifMap
 }
 
-func (p *Wrtprovider) ConvertCrd(mwan3Policy *sdewanv1alpha1.Mwan3Policy, pod *corev1.Pod) openwrt.SdewanPolicy, error {
+func (p *Wrtprovider) net2iface(net string) string, error {
+	type Iface struct{
+		DefaultGateway bool
+		Interface string
+		Name string
+	}
+	type NfnNet struct{
+		Type string
+		Interface []Iface
+	}
+	ann := p.Deployment.Spec.Templete.Annotations
+	nfnNet = NfnNet{}
+	err := json.Unmarshal([]byte(ann["k8s.plugin.opnfv.org/nfn-network"]), &nfnNet)
+	if err != nil {
+		return "", err
+	}
+	for _, iface := range nfnNet.Interface {
+		if iface.Name == net {
+			return iface.Interface, nil
+		}
+	}
+	return "", errors.New(fmt.Sprintf("No matched network in annotation: %s", net))
+
+}
+
+func (p *Wrtprovider) convertCrd(mwan3Policy *sdewanv1alpha1.Mwan3Policy) openwrt.SdewanPolicy, error {
+	members := make([]openwrt.SdewanMember, len(mwan3Policy.Spec.Members))
+	for i, membercr := range mwan3Policy.Spec.Members {
+		iface, err := p.net2iface(membercr.Network)
+		if err != nil {
+			return nil, err
+		}
+		members[i] = openwrt.SdewanMember{
+			Interface: iface,
+			Metric: membercr.Metric,
+			Weight: membercr.Weight
+		}
+	}
+	return openwrt.SdewanPolicy{Name: mwan3Policy.Name, Members: members}, nil
 
 }
 
@@ -46,165 +84,61 @@ func (p *Wrtprovider) AddUpdateMwan3Policy(mwan3Policy *sdewanv1alpha1.Mwan3Poli
 		reqLogger.Error(err)
 		return err
 	}
+	policy, err := p.convertCrd(mwan3Policy)
+	if err != nil {
+		reqLogger.Error(err, "Failed to convert mwan3Policy CR")
+		return err
+	}
 	for _, pod := range podList.Items {
-	}
-        openwrtClient := openwrt.NewOpenwrtClient(sdewan.Name + "." + sdewan.Namespace, "root", "")
-        mwan3 := openwrt.Mwan3Client{OpenwrtClient: openwrtClient}
-        service := openwrt.ServiceClient{OpenwrtClient: openwrtClient}
-        netMap := NetworkInterfaceMap(sdewan)
-        var policies []openwrt.SdewanPolicy
-}
-
-
-func Mwan3ReplacePolicies(policies []openwrt.SdewanPolicy, existOnes []openwrt.SdewanPolicy, client *openwrt.Mwan3Client) error {
-	// create/update new policies
-	for _, policy := range policies {
-		found := false
-		for _, p := range existOnes {
-			if p.Name == policy.Name {
-				if !reflect.DeepEqual(policy, p) {
-					_, err := client.UpdatePolicy(policy)
-					if err != nil {
-						return err
-					}
-				}
-				found = true
-				break
-			}
-		}
-		if found == false {
-			_, err := client.CreatePolicy(policy)
+		openwrtClient := openwrt.NewOpenwrtClient(pod.Status.PodIP, "root", "")
+		mwan3 := openwrt.Mwan3Client{OpenwrtClient: openwrtClient}
+		service := openwrt.ServiceClient{OpenwrtClient: openwrtClient}
+		runtimePolicy, _ := mwan3.GetPolicy(policy.Name)
+		if runtimePolicy == nil {
+			_, err := mwan3.CreatePolicy(policy)
 			if err != nil {
+				reqLogger.Error(err, "Failed to create policy")
+				return err
+			}
+		} else if reflect.deepEqual(*runtimePolicy, policy) {
+			reqLogger.Debug("Equal to the runtime policy, so no update")
+		} else {
+			_, err := mwan3.UpdatePolicy(policy)
+			if err != nil {
+				reqLogger.Error(err, "Failed to update policy")
 				return err
 			}
 		}
 	}
-
-	// remove old policies
-	for _, p := range existOnes {
-		found := false
-		for _, policy := range policies {
-			if p.Name == policy.Name {
-				found = true
-				break
-			}
-		}
-		if found == false {
-			err := client.DeletePolicy(p.Name)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
+	// We say the AddUpdate succeed only when the add/update for all pods succeed
 	return nil
 }
 
-func Mwan3ReplaceRules(rules []openwrt.SdewanRule, existOnes []openwrt.SdewanRule, client *openwrt.Mwan3Client) error {
-	// create/update new rules
-	for _, rule := range rules {
-		found := false
-		for _, r := range existOnes {
-			if r.Name == rule.Name {
-				if !reflect.DeepEqual(rule, r) {
-					_, err := client.UpdateRule(rule)
-					if err != nil {
-						return err
-					}
-				}
-				found = true
-				break
-			}
-		}
-		if found == false {
-			_, err := client.CreateRule(rule)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	// remove old rules
-	for _, r := range existOnes {
-		found := false
-		for _, rule := range rules {
-			if r.Name == rule.Name {
-				found = true
-				break
-			}
-		}
-		if found == false {
-			err := client.DeleteRule(r.Name)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
+func (p *Wrtprovider) DeleteMwan3Policy(mwan3Policy *sdewanv1alpha1.Mwan3Policy) error {
+        reqLogger := log.WithValues("Mwan3Policy", mwan3Policy.Name, "cnf", deploy.Name)
+        ctx := context.Background()
+        podList := &corev1.PodList{}
+        err := p.K8sClient.Get(ctx, podList, client.MatchingLabels{"sdewanPurpose": p.SdewanPurpose})
+        if err != nil {
+                reqLogger.Error(err, "Failed to get pod list")
+                return err
+        }
+        for _, pod := range podList.Items {
+                openwrtClient := openwrt.NewOpenwrtClient(pod.Status.PodIP, "root", "")
+                mwan3 := openwrt.Mwan3Client{OpenwrtClient: openwrtClient}
+                service := openwrt.ServiceClient{OpenwrtClient: openwrtClient}
+                runtimePolicy, _ := mwan3.GetPolicy(mwan3Policy.Name)
+                if runtimePolicy == nil {
+                        reqLogger.Debug("Runtime policy doesn't exist, so don't have to delete")
+                } else {
+                        _, err := mwan3.DeletePolicy(mwan3Policy.Name)
+                        if err != nil {
+                                reqLogger.Error(err, "Failed to delete policy")
+                                return err
+                        }
+                }
+        }
+        // We say the deletioni succeed only when the deletion for all pods succeed
+        return nil
 }
 
-// apply policy and rules
-func Mwan3Apply(mwan3Conf *sdewanv1alpha1.Mwan3Conf, sdewan *sdewanv1alpha1.Sdewan) error {
-	reqLogger := log.WithValues("Mwan3Provider", mwan3Conf.Name, "Sdewan", sdewan.Name)
-	openwrtClient := openwrt.NewOpenwrtClient(sdewan.Name + "." + sdewan.Namespace, "root", "")
-	mwan3 := openwrt.Mwan3Client{OpenwrtClient: openwrtClient}
-	service := openwrt.ServiceClient{OpenwrtClient: openwrtClient}
-	netMap := NetworkInterfaceMap(sdewan)
-	var policies []openwrt.SdewanPolicy
-	for policyName, members := range mwan3Conf.Spec.Policies {
-		openwrtMembers := make([]openwrt.SdewanMember, len(members.Members))
-		for i, member := range members.Members {
-			openwrtMembers[i] = openwrt.SdewanMember{
-				Interface: netMap[member.Network],
-				Metric:    fmt.Sprintf("%d", member.Metric),
-				Weight:    fmt.Sprintf("%d", member.Weight),
-			}
-		}
-		policies = append(policies, openwrt.SdewanPolicy{
-			Name:    policyName,
-			Members: openwrtMembers})
-	}
-	existPolicies, err := mwan3.GetPolicies()
-	if err != nil {
-		reqLogger.Error(err, "Failed to fetch existing policies")
-		return err
-	}
-	err = Mwan3ReplacePolicies(policies, existPolicies.Policies, &mwan3)
-	if err != nil {
-		reqLogger.Error(err, "Failed to apply Policies")
-		return err
-	}
-	var rules []openwrt.SdewanRule
-	for ruleName, rule := range mwan3Conf.Spec.Rules {
-		openwrtRule := openwrt.SdewanRule{
-			Name:     ruleName,
-			Policy:   rule.UsePolicy,
-			SrcIp:    rule.SrcIP,
-			SrcPort:  rule.SrcPort,
-			DestIp:   rule.DestIP,
-			DestPort: rule.DestPort,
-			Proto:    rule.Proto,
-			Family:   rule.Family,
-			Sticky:   rule.Sticky,
-			Timeout:  rule.Timeout,
-		}
-		rules = append(rules, openwrtRule)
-	}
-	existRules, err := mwan3.GetRules()
-	if err != nil {
-		reqLogger.Error(err, "Failed to fetch existing rules")
-		return err
-	}
-	err = Mwan3ReplaceRules(rules, existRules.Rules, &mwan3)
-	if err != nil {
-		reqLogger.Error(err, "Failed to apply rules")
-		return err
-	}
-	_, err = service.ExecuteService("mwan3", "restart")
-	if err != nil {
-		reqLogger.Error(err, "Failed to restart mwan3 service")
-		return err
-	}
-	return nil
-}
