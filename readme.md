@@ -1,6 +1,6 @@
 # Sdewan operator
 
-The sdewan operator is developed under kubebuilder framework
+he sdewan operator is developed under kubebuilder framework
 
 ## Development
 
