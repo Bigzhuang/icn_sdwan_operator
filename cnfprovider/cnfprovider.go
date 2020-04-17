@@ -8,10 +8,9 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-
-type CnfProvider interface{
+type CnfProvider interface {
 	AddUpdateMwan3Policy(*sdewanv1alpha1.Mwan3Policy) error
 	DeleteMwan3Policy(*sdewanv1alpha1.Mwan3Policy) error
 	// TODO: Add more Interfaces here
-	IsCnfReady() bool, error
+	IsCnfReady() (bool, error)
 }

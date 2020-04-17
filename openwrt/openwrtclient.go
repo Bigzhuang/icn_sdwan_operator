@@ -99,7 +99,7 @@ func (o *openwrtClient) login() error {
 // logout to openwrt http server
 func (o *openwrtClient) logout() error {
 	if o.token != "" {
-		_, err:= o.Get("admin/logout")
+		_, err := o.Get("admin/logout")
 		o.token = ""
 		return err
 	}
