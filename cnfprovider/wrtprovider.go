@@ -29,6 +29,7 @@ func NewWrt(namespace string, sdewanPurpose string, k8sClient client.Client) (*W
 	ctx := context.Background()
 	deployments := &extensionsv1beta1.DeploymentList{}
 	err := k8sClient.List(ctx, deployments, client.MatchingLabels{"sdewanPurpose": sdewanPurpose})
+	fmt.Printf("book:%+v\n\n", deployments.Items)
 	if err != nil {
 		reqLogger.Error(err, "Failed to get cnf deployment")
 		return nil, client.IgnoreNotFound(err)

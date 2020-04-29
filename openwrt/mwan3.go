@@ -69,6 +69,14 @@ type SdewanRules struct {
 	Rules []SdewanRule `json:"rules"`
 }
 
+func (o *SdewanPolicy) GetName() string {
+	return o.Name
+}
+
+func (o *SdewanRule) GetName() string {
+	return o.Name
+}
+
 // get interface status
 func (m *Mwan3Client) GetInterfaceStatus() (*InterfaceStatus, error) {
 	response, err := m.OpenwrtClient.Get("admin/status/mwan/interface_status")

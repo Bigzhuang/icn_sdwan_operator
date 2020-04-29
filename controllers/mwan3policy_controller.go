@@ -27,8 +27,89 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	batchv1alpha1 "sdewan.akraino.org/sdewan/api/v1alpha1"
+	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	"sdewan.akraino.org/sdewan/cnfprovider"
+	"sdewan.akraino.org/sdewan/openwrt"
+	"strconv"
+	"reflect"
 )
+
+type Mwan3PolicyHandler struct {
+}
+
+func (m *Mwan3PolicyHandler) GetType() (string) {
+	return "Mwan3Policy"
+}
+
+func (m *Mwan3PolicyHandler) GetName(instance runtime.Object) (string) {
+	policy := instance.(*batchv1alpha1.Mwan3Policy)
+	return policy.Name
+}
+
+func (m *Mwan3PolicyHandler) GetFinalizer() (string) {
+	return "rule.finalizers.sdewan.akraino.org"
+}
+
+func (m *Mwan3PolicyHandler) GetInstance(r client.Client, ctx Context, req ctrl.Request) (runtime.Object, error) {
+	instance := &batchv1alpha1.Mwan3Policy{}
+	err := r.Get(ctx, req.NamespacedName, instance)
+	return instance, err
+}
+
+func (m *Mwan3PolicyHandler) Convert(instance runtime.Object, deployment extensionsv1beta1.Deployment) (IOpenWrtObject, error) {
+	policy := instance.(*batchv1alpha1.Mwan3Policy)
+	members := make([]openwrt.SdewanMember, len(policy.Spec.Members))
+	for i, membercr := range policy.Spec.Members {
+		iface, err := net2iface(membercr.Network, deployment)
+		if err != nil {
+			return nil, err
+		}
+		members[i] = openwrt.SdewanMember{
+			Interface: iface,
+			Metric:    strconv.Itoa(membercr.Metric),
+			Weight:    strconv.Itoa(membercr.Weight),
+		}
+	}
+	return &openwrt.SdewanPolicy{Name: policy.Name, Members: members}, nil
+}
+
+func (m *Mwan3PolicyHandler) IsEqual(instance1 IOpenWrtObject, instance2 IOpenWrtObject) (bool) {
+	policy1 := instance1.(*openwrt.SdewanPolicy)
+	policy2 := instance2.(*openwrt.SdewanPolicy)
+	reflect.DeepEqual(*policy1, *policy2)
+}
+
+func (m *Mwan3PolicyHandler) GetObject(clientInfo *openwrt.OpenwrtClientInfo, name string) (IOpenWrtObject, error) {
+	openwrtClient := openwrt.GetOpenwrtClient(*clientInfo)
+	mwan3 := openwrt.Mwan3Client{OpenwrtClient: openwrtClient}
+	return mwan3.GetPolicy(policy.Name)
+}
+
+func (m *Mwan3PolicyHandler) CreateObject(clientInfo *OpenwrtClientInfo, instance IOpenWrtObject) (IOpenWrtObject, error) {
+	openwrtClient := openwrt.GetOpenwrtClient(*clientInfo)
+	mwan3 := openwrt.Mwan3Client{OpenwrtClient: openwrtClient}
+	policy := instance.(*openwrt.SdewanPolicy)
+	return mwan3.CreatePolicy(*policy)
+}
+
+func (m *Mwan3PolicyHandler) UpdateObject(clientInfo *OpenwrtClientInfo, instance IOpenWrtObject) (IOpenWrtObject, error) {
+	openwrtClient := openwrt.GetOpenwrtClient(*clientInfo)
+	mwan3 := openwrt.Mwan3Client{OpenwrtClient: openwrtClient}
+	policy := instance.(*openwrt.SdewanPolicy)
+	return mwan3.UpdatePolicy(*policy)
+}
+
+func (m *Mwan3PolicyHandler) DeleteObject(clientInfo *openwrt.OpenwrtClientInfo, name string) (error) {
+	openwrtClient := openwrt.GetOpenwrtClient(*clientInfo)
+	mwan3 := openwrt.Mwan3Client{OpenwrtClient: openwrtClient}
+	return mwan3.DeletePolicy(name)
+}
+
+func (m *Mwan3PolicyHandler) Restart(clientInfo *OpenwrtClientInfo) (bool, error) {
+	openwrtClient := openwrt.GetOpenwrtClient(*clientInfo)
+	service := openwrt.ServiceClient{OpenwrtClient: openwrtClient}
+	return service.ExecuteService("mwan3", "restart")
+}
 
 // Mwan3PolicyReconciler reconciles a Mwan3Policy object
 type Mwan3PolicyReconciler struct {
@@ -39,8 +120,11 @@ type Mwan3PolicyReconciler struct {
 
 // +kubebuilder:rbac:groups=batch.sdewan.akraino.org,resources=mwan3policies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=batch.sdewan.akraino.org,resources=mwan3policies/status,verbs=get;update;patch
-
 func (r *Mwan3PolicyReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+	return ProcessReconcile(r, r.Log, req, &mwan3policyHandler{})
+
+/*
+func (r *Mwan3PolicyReconciler) OldReconcile (req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("mwan3policy", req.NamespacedName)
 
@@ -120,6 +204,7 @@ func (r *Mwan3PolicyReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error)
 
 	return ctrl.Result{}, nil
 }
+*/
 
 func (r *Mwan3PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -127,6 +212,7 @@ func (r *Mwan3PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+/*
 // Helper functions to check and remove string from a slice of strings.
 func containsString(slice []string, s string) bool {
 	for _, item := range slice {
@@ -146,3 +232,4 @@ func removeString(slice []string, s string) (result []string) {
 	}
 	return
 }
+*/
