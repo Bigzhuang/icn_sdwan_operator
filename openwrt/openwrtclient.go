@@ -3,15 +3,15 @@ package openwrt
 import (
 	"bytes"
 	"fmt"
-	"sync"
 	"io/ioutil"
 	"net/http"
 	"runtime"
 	"strings"
+	"sync"
 )
 
 type IOpenWrtObject interface {
-    GetName() string
+	GetName() string
 }
 
 type OpenwrtError struct {
@@ -31,7 +31,7 @@ type OpenwrtClientInfo struct {
 
 type openwrtClient struct {
 	OpenwrtClientInfo
-	token    string
+	token string
 }
 
 type safeOpenwrtClient struct {
@@ -60,9 +60,9 @@ func (s *safeOpenwrtClient) GetClient(ip string, user string, password string) *
 			OpenwrtClientInfo: OpenwrtClientInfo{
 				Ip:       ip,
 				User:     user,
- 				Password: password,
- 			},
-			token:    "",
+				Password: password,
+			},
+			token: "",
 		}
 	}
 

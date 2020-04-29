@@ -2,18 +2,14 @@ package cnfprovider
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	corev1 "k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	"reflect"
-	sdewanv1alpha1 "sdewan.akraino.org/sdewan/api/v1alpha1"
+	"sdewan.akraino.org/sdewan/controllers"
 	"sdewan.akraino.org/sdewan/openwrt"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"strconv"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 var log = logf.Log.WithName("OpenWrtProvider")

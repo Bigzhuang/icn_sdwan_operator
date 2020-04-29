@@ -26,22 +26,22 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	batchv1alpha1 "sdewan.akraino.org/sdewan/api/v1alpha1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+	"reflect"
+	batchv1alpha1 "sdewan.akraino.org/sdewan/api/v1alpha1"
 	"sdewan.akraino.org/sdewan/cnfprovider"
 	"sdewan.akraino.org/sdewan/openwrt"
 	"strconv"
-	"reflect"
 )
 
 type Mwan3PolicyHandler struct {
 }
 
-func (m *Mwan3PolicyHandler) GetType() (string) {
+func (m *Mwan3PolicyHandler) GetType() string {
 	return "Mwan3Policy"
 }
 
-func (m *Mwan3PolicyHandler) GetName(instance runtime.Object) (string) {
+func (m *Mwan3PolicyHandler) GetName(instance runtime.Object) string {
 	policy := instance.(*batchv1alpha1.Mwan3Policy)
 	return policy.Name
 }
@@ -122,6 +122,7 @@ type Mwan3PolicyReconciler struct {
 // +kubebuilder:rbac:groups=batch.sdewan.akraino.org,resources=mwan3policies/status,verbs=get;update;patch
 func (r *Mwan3PolicyReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ProcessReconcile(r, r.Log, req, &mwan3policyHandler{})
+}
 
 /*
 func (r *Mwan3PolicyReconciler) OldReconcile (req ctrl.Request) (ctrl.Result, error) {
