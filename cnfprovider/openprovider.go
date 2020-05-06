@@ -7,13 +7,11 @@ import (
 	"fmt"
 	corev1 "k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
-	"reflect"
-	sdewanv1alpha1 "sdewan.akraino.org/sdewan/api/v1alpha1"
+	"k8s.io/apimachinery/pkg/runtime"
+	testhandler "sdewan.akraino.org/sdewan/basehandler"
 	"sdewan.akraino.org/sdewan/openwrt"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"strconv"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 var log = logf.Log.WithName("OpenWrtProvider")
@@ -23,6 +21,11 @@ type OpenWrtProvider struct {
 	SdewanPurpose string
 	Deployment    extensionsv1beta1.Deployment
 	K8sClient     client.Client
+}
+
+func printjson(word openwrt.IOpenWrtObject) {
+	policy_obj, _ := json.Marshal(word)
+	fmt.Printf("%s\n", string(policy_obj))
 }
 
 func NewOpenWrt(namespace string, sdewanPurpose string, k8sClient client.Client) (*OpenWrtProvider, error) {
@@ -42,7 +45,7 @@ func NewOpenWrt(namespace string, sdewanPurpose string, k8sClient client.Client)
 	return &OpenWrtProvider{namespace, sdewanPurpose, deployments.Items[0], k8sClient}, nil
 }
 
-func (p *OpenWrtProvider) AddOrUpdateObject(handler ISdewanHandler, instance runtime.Object) (bool, error) {
+func (p *OpenWrtProvider) AddOrUpdateObject(handler testhandler.ISdewanHandler, instance runtime.Object) (bool, error) {
 	// reqLogger := log.WithValues("Mwan3Policy", mwan3Policy.Name, "cnf", p.Deployment.Name)
 	reqLogger := log.WithValues(handler.GetType(), handler.GetName(instance), "cnf", p.Deployment.Name)
 	ctx := context.Background()
@@ -53,9 +56,10 @@ func (p *OpenWrtProvider) AddOrUpdateObject(handler ISdewanHandler, instance run
 		return false, err
 	}
 	// policy, err := p.convertCrd(mwan3Policy)
-	new_instance, err := handler.Convert(instance)
+	new_instance, err := handler.Convert(instance, p.Deployment)
+	// printjson(new_instance)
 	if err != nil {
-		reqLogger.Error(err, "Failed to convert CR for " + handler.GetType())
+		reqLogger.Error(err, "Failed to convert CR for "+handler.GetType())
 		return false, err
 	}
 	cnfChanged := false
@@ -64,26 +68,27 @@ func (p *OpenWrtProvider) AddOrUpdateObject(handler ISdewanHandler, instance run
 		// mwan3 := openwrt.Mwan3Client{OpenwrtClient: openwrtClient}
 		// service := openwrt.ServiceClient{OpenwrtClient: openwrtClient}
 		// runtimePolicy, _ := mwan3.GetPolicy(policy.Name)
-		clientInfo := &openwrt.OpenwrtClientInfo{pod.Status.PodIP, "root", ""}
-		runtime_instance, _ := handler.GetObject(clientInfo, new_instance.GetName())
+		clientInfo := &openwrt.OpenwrtClientInfo{Ip: pod.Status.PodIP, User: "root", Password: ""}
+		runtime_instance, err := handler.GetObject(clientInfo, new_instance.GetName())
 		changed := false
+
 		// if runtimePolicy == nil {
-		if runtime_instance == nil {
+		if err != nil {
 			// _, err := mwan3.CreatePolicy(*policy)
 			_, err := handler.CreateObject(clientInfo, new_instance)
 			if err != nil {
-				reqLogger.Error(err, "Failed to create " + handler.GetType())
+				reqLogger.Error(err, "Failed to create "+handler.GetType())
 				return false, err
 			}
 			changed = true
-		// } else if reflect.DeepEqual(*runtimePolicy, *policy) {
+			// } else if reflect.DeepEqual(*runtimePolicy, *policy) {
 		} else if handler.IsEqual(runtime_instance, new_instance) {
 			reqLogger.Info("Equal to the runtime instance, so no update")
 		} else {
 			// _, err := mwan3.UpdatePolicy(*policy)
 			_, err := handler.UpdateObject(clientInfo, new_instance)
 			if err != nil {
-				reqLogger.Error(err, "Failed to update " + handler.GetType())
+				reqLogger.Error(err, "Failed to update "+handler.GetType())
 				return false, err
 			}
 			changed = true
@@ -102,7 +107,7 @@ func (p *OpenWrtProvider) AddOrUpdateObject(handler ISdewanHandler, instance run
 	return cnfChanged, nil
 }
 
-func (p *OpenWrtProvider) DeleteObject(handler ISdewanHandler, instance runtime.Object) (bool, error) {
+func (p *OpenWrtProvider) DeleteObject(handler testhandler.ISdewanHandler, instance runtime.Object) (bool, error) {
 	// reqLogger := log.WithValues("Mwan3Policy", mwan3Policy.Name, "cnf", p.Deployment.Name)
 	reqLogger := log.WithValues(handler.GetType(), handler.GetName(instance), "cnf", p.Deployment.Name)
 	ctx := context.Background()
@@ -117,7 +122,7 @@ func (p *OpenWrtProvider) DeleteObject(handler ISdewanHandler, instance runtime.
 		// openwrtClient := openwrt.NewOpenwrtClient(pod.Status.PodIP, "root", "")
 		// mwan3 := openwrt.Mwan3Client{OpenwrtClient: openwrtClient}
 		// service := openwrt.ServiceClient{OpenwrtClient: openwrtClient}
-		clientInfo := &openwrt.OpenwrtClientInfo{pod.Status.PodIP, "root", ""}
+		clientInfo := &openwrt.OpenwrtClientInfo{Ip: pod.Status.PodIP, User: "root", Password: ""}
 		runtime_instance, _ := handler.GetObject(clientInfo, handler.GetName(instance))
 		// runtimePolicy, _ := mwan3.GetPolicy(mwan3Policy.Name)
 		if runtime_instance == nil {
