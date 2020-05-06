@@ -2,6 +2,7 @@ package openwrt
 
 import (
 	"encoding/json"
+	// "fmt"
 )
 
 const (
@@ -51,6 +52,12 @@ type SdewanPolicies struct {
 	Policies []SdewanPolicy `json:"policies"`
 }
 
+
+func (o *SdewanPolicy) GetName() string {
+	return o.Name
+}
+
+
 // MWAN3 Rule
 type SdewanRule struct {
 	Name     string `json:"name"`
@@ -69,9 +76,6 @@ type SdewanRules struct {
 	Rules []SdewanRule `json:"rules"`
 }
 
-func (o *SdewanPolicy) GetName() string {
-	return o.Name
-}
 
 func (o *SdewanRule) GetName() string {
 	return o.Name
@@ -116,7 +120,6 @@ func (m *Mwan3Client) GetPolicy(policy_name string) (*SdewanPolicy, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	var sdewanPolicy SdewanPolicy
 	err2 := json.Unmarshal([]byte(response), &sdewanPolicy)
 	if err2 != nil {
