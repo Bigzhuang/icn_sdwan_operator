@@ -76,6 +76,9 @@ type SdewanRules struct {
 	Rules []SdewanRule `json:"rules"`
 }
 
+func (o *SdewanPolicy) GetName() string { //add this method for rule
+	return o.Name  
+}
 
 func (o *SdewanRule) GetName() string {
 	return o.Name
