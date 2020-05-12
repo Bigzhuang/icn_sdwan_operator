@@ -73,7 +73,9 @@ func (p *OpenWrtProvider) AddOrUpdateObject(handler testhandler.ISdewanHandler, 
 		changed := false
 
 		// if runtimePolicy == nil {
+		fmt.Println("+openprovider.go++++++++++++++++++++++after GetObject+++++++++++")
 		if err != nil {
+			fmt.Println("+openprovider.go++++++++++++++++++++++Create GetObject+++++++++++")
 			// _, err := mwan3.CreatePolicy(*policy)
 			_, err := handler.CreateObject(clientInfo, new_instance)
 			if err != nil {
@@ -83,8 +85,10 @@ func (p *OpenWrtProvider) AddOrUpdateObject(handler testhandler.ISdewanHandler, 
 			changed = true
 			// } else if reflect.DeepEqual(*runtimePolicy, *policy) {
 		} else if handler.IsEqual(runtime_instance, new_instance) {
+			fmt.Println("+openprovider.go++++++++++++++++++++++IsEqual GetObject+++++++++++")
 			reqLogger.Info("Equal to the runtime instance, so no update")
 		} else {
+			fmt.Println("+openprovider.go++++++++++++++++++++++Update GetObject+++++++++++")
 			// _, err := mwan3.UpdatePolicy(*policy)
 			_, err := handler.UpdateObject(clientInfo, new_instance)
 			if err != nil {
@@ -95,7 +99,9 @@ func (p *OpenWrtProvider) AddOrUpdateObject(handler testhandler.ISdewanHandler, 
 		}
 		if changed {
 			// _, err = service.ExecuteService("mwan3", "restart")
+			fmt.Println("+openprovider.go++++++++++++++++++++++Restart Service+++++++++++")
 			_, err = handler.Restart(clientInfo)
+			fmt.Println("+openprovider.go++++++++++++++++++++++Restart Service successfully !!!+++++++++++")
 			if err != nil {
 				reqLogger.Error(err, "Failed to restart openwrt service")
 				return changed, err

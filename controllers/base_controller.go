@@ -177,12 +177,16 @@ func ProcessReconcile(r client.Client, logger logr.Logger, req ctrl.Request, han
 			}
 		}
 		if changed {
+			fmt.Printf("file: base controller.go\n line:184\n-------------cnf changed ------- CR\n")
 			// instance.Status.AppliedVersion = instance.ResourceVersion
 			// instance.Status.AppliedTime = &metav1.Time{Time: time.Now()}
 			// instance.Status.InSync = true
 			// Status: SdewanStatus
+			fmt.Println("+instance++++++++++++++")
+			fmt.Println(instance)
 			setStatus(instance, &metav1.Time{Time: time.Now()}, true)
 
+			fmt.Printf("file: base controller.go\n line:184\n-------------set status ------- CR\n")
 			err = r.Status().Update(ctx, instance)
 			if err != nil {
 				log.Error(err, "Failed to update status for "+handler.GetType())

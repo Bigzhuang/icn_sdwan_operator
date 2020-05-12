@@ -17,13 +17,15 @@ package controllers
 
 import (
 	"context"
-
+	"fmt"
 	"github.com/go-logr/logr"
+	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"reflect"
+	batchv1alpha1 "sdewan.akraino.org/sdewan/api/v1alpha1"
+	"sdewan.akraino.org/sdewan/openwrt"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	batchv1alpha1 "sdewan.akraino.org/sdewan/api/v1alpha1"
 )
 
 type Mwan3RuleHandler struct {
@@ -34,8 +36,8 @@ func (m *Mwan3RuleHandler) GetType() string {
 }
 
 func (m *Mwan3RuleHandler) GetName(instance runtime.Object) string {
-	policy := instance.(*batchv1alpha1.Mwan3Rule)
-	return policy.Name
+	Rule := instance.(*batchv1alpha1.Mwan3Rule)
+	return Rule.Name
 }
 
 func (m *Mwan3RuleHandler) GetFinalizer() string {
@@ -47,39 +49,47 @@ func (m *Mwan3RuleHandler) GetInstance(r client.Client, ctx context.Context, req
 	err := r.Get(ctx, req.NamespacedName, instance)
 	return instance, err
 }
+
 //
 func (m *Mwan3RuleHandler) Convert(instance runtime.Object, deployment extensionsv1beta1.Deployment) (openwrt.IOpenWrtObject, error) {
+	fmt.Println("++++++++++++++++++++mwan3rule+++++++++++++++++++convert")
 	rule := instance.(*batchv1alpha1.Mwan3Rule)
-	members := make([]openwrt.SdewanMember, len(rule.Spec.Members))
-	for i, membercr := range rule.Spec.Members {
-		iface, err := net2iface(membercr.Network, deployment)
-		if err != nil {
-			return nil, err
-		}
-		members[i] = openwrt.SdewanMember{
-			Interface: iface,
-			Metric:    strconv.Itoa(membercr.Metric),
-			Weight:    strconv.Itoa(membercr.Weight),
-		}
+	// openwrtrule := openwrt.SdewanRule{
+	// 	rule.Spec}
+	openwrtrule := openwrt.SdewanRule{
+		Name:     rule.Name,
+		Policy:   rule.Spec.Policy,
+		SrcIp:    rule.Spec.SrcIp,
+		SrcPort:  rule.Spec.SrcPort,
+		DestIp:   rule.Spec.DestIp,
+		DestPort: rule.Spec.DestPort,
+		Proto:    rule.Spec.Proto,
+		Family:   rule.Spec.Family,
+		Sticky:   rule.Spec.Sticky,
+		Timeout:  rule.Spec.Timeout,
 	}
-	return &openwrt.SdewanPolicy{Name: policy.Name, Members: members}, nil
+	fmt.Println(openwrtrule)
+	return &openwrtrule, nil
+	// return &openwrt.SdewanRule(instance), nil
 }
 
+// vet: controllers/mwan3rule_controller.go:68:10: invalid operation: cannot take address of openwrt.SdewanRule(rule.Spec) (value of type openwrt.SdewanRule)
+
 // func printjson(word openwrt.IOpenWrtObject) {
-// 	policy_obj, _ := json.Marshal(word)
-// 	fmt.Printf("%s\n", string(policy_obj))
+// 	Rule_obj, _ := json.Marshal(word)
+// 	fmt.Printf("%s\n", string(Rule_obj))
 // }
 
 func (m *Mwan3RuleHandler) IsEqual(instance1 openwrt.IOpenWrtObject, instance2 openwrt.IOpenWrtObject) bool {
-	policy1 := instance1.(*openwrt.SdewanPolicy)
-	policy2 := instance2.(*openwrt.SdewanPolicy)
-	return reflect.DeepEqual(*policy1, *policy2)
+	Rule1 := instance1.(*openwrt.SdewanRule)
+	Rule2 := instance2.(*openwrt.SdewanRule)
+	return reflect.DeepEqual(*Rule1, *Rule2)
 }
 
 func (m *Mwan3RuleHandler) GetObject(clientInfo *openwrt.OpenwrtClientInfo, name string) (openwrt.IOpenWrtObject, error) {
 	openwrtClient := openwrt.GetOpenwrtClient(*clientInfo)
 	mwan3 := openwrt.Mwan3Client{OpenwrtClient: openwrtClient}
-	ret, err := mwan3.GetPolicy(name)
+	ret, err := mwan3.GetRule(name)
 	printjson(ret)
 	return ret, err
 }
@@ -87,21 +97,21 @@ func (m *Mwan3RuleHandler) GetObject(clientInfo *openwrt.OpenwrtClientInfo, name
 func (m *Mwan3RuleHandler) CreateObject(clientInfo *openwrt.OpenwrtClientInfo, instance openwrt.IOpenWrtObject) (openwrt.IOpenWrtObject, error) {
 	openwrtClient := openwrt.GetOpenwrtClient(*clientInfo)
 	mwan3 := openwrt.Mwan3Client{OpenwrtClient: openwrtClient}
-	policy := instance.(*openwrt.SdewanPolicy)
-	return mwan3.CreatePolicy(*policy)
+	Rule := instance.(*openwrt.SdewanRule)
+	return mwan3.CreateRule(*Rule)
 }
 
 func (m *Mwan3RuleHandler) UpdateObject(clientInfo *openwrt.OpenwrtClientInfo, instance openwrt.IOpenWrtObject) (openwrt.IOpenWrtObject, error) {
 	openwrtClient := openwrt.GetOpenwrtClient(*clientInfo)
 	mwan3 := openwrt.Mwan3Client{OpenwrtClient: openwrtClient}
-	policy := instance.(*openwrt.SdewanPolicy)
-	return mwan3.UpdatePolicy(*policy)
+	Rule := instance.(*openwrt.SdewanRule)
+	return mwan3.UpdateRule(*Rule)
 }
 
 func (m *Mwan3RuleHandler) DeleteObject(clientInfo *openwrt.OpenwrtClientInfo, name string) error {
 	openwrtClient := openwrt.GetOpenwrtClient(*clientInfo)
 	mwan3 := openwrt.Mwan3Client{OpenwrtClient: openwrtClient}
-	return mwan3.DeletePolicy(name)
+	return mwan3.DeleteRule(name)
 }
 
 func (m *Mwan3RuleHandler) Restart(clientInfo *openwrt.OpenwrtClientInfo) (bool, error) {
@@ -109,7 +119,6 @@ func (m *Mwan3RuleHandler) Restart(clientInfo *openwrt.OpenwrtClientInfo) (bool,
 	service := openwrt.ServiceClient{OpenwrtClient: openwrtClient}
 	return service.ExecuteService("mwan3", "restart")
 }
-
 
 // Mwan3RuleReconciler reconciles a Mwan3Rule object
 type Mwan3RuleReconciler struct {
